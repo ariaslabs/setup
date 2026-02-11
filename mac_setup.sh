@@ -21,27 +21,49 @@ clear
 # Configuration Section - Easy to Update
 # =============================================================================
 
-# Package definitions using indexed arrays (bash 3.2 compatible)
-# Format: "key|type|command|check|display_name"
+# List of packages to install (in order)
 declare -a PACKAGES=(
-    "homebrew|script|install_homebrew|command -v brew|Homebrew"
-    "oh-my-zsh|script|install_ohmyzsh|test -d ~/.oh-my-zsh|Oh My Zsh"
-    "ollama|script|install_ollama|command -v ollama|Ollama"
-    "bun|script|install_bun|command -v bun|Bun.js"
-    "gh|brew|gh|command -v gh|GitHub CLI"
-    "syncthing|brew|syncthing|command -v syncthing|Syncthing"
-    "docker|cask|docker|brew list --cask docker|Docker Desktop"
-    "vscodium|cask|vscodium|brew list --cask vscodium|VSCodium"
-    "firefox|cask|firefox|brew list --cask firefox|Firefox"
-    "spotify|cask|spotify|brew list --cask spotify|Spotify"
-    "signal|cask|signal|brew list --cask signal|Signal"
-    "discord|cask|discord|brew list --cask discord|Discord"
-    "ghostty|cask|ghostty|brew list --cask ghostty|Ghostty"
-    "raycast|cask|raycast|brew list --cask raycast|Raycast"
-    "obsidian|cask|obsidian|brew list --cask obsidian|Obsidian"
-    "qbittorrent|cask|qbittorrent|brew list --cask qbittorrent|qBittorrent"
-    "eddie|cask|eddie|brew list --cask eddie|Eddie"
-    "opencode|tap|anomalyco/tap/opencode|command -v opencode|OpenCode"
+    "homebrew"      # Package manager (must be first)
+    "oh-my-zsh"     # Shell enhancement
+    "ollama"        # AI model runner
+    "bun"           # JavaScript runtime
+    "gh"            # GitHub CLI
+    "syncthing"     # File sync
+    "docker"        # Container platform
+    "vscodium"      # Code editor
+    "firefox"       # Web browser
+    "spotify"       # Music streaming
+    "signal"        # Secure messaging
+    "discord"       # Chat and voice
+    "ghostty"       # Terminal emulator
+    "raycast"       # Spotlight replacement
+    "obsidian"      # Note-taking app
+    "qbittorrent"   # BitTorrent client
+    "eddie"         # VPN client
+    "opencode"      # AI coding assistant
+)
+
+# Package metadata: install_command:check_command:display_name
+# Format: "type:brew_install|script_install:command_check:Display Name"
+declare -A PACKAGE_INFO=(
+    ["homebrew"]="script:install_homebrew:command -v brew:Homebrew"
+    ["oh-my-zsh"]="script:install_ohmyzsh:test -d ~/.oh-my-zsh:Oh My Zsh"
+    ["ollama"]="script:install_ollama:command -v ollama:Ollama"
+    ["bun"]="script:install_bun:command -v bun:Bun.js"
+    ["gh"]="brew:gh:command -v gh:GitHub CLI"
+    ["syncthing"]="brew:syncthing:command -v syncthing:Syncthing"
+    ["docker"]="cask:docker:brew list --cask docker:Docker Desktop"
+    ["vscodium"]="cask:vscodium:brew list --cask vscodium:VSCodium"
+    ["firefox"]="cask:firefox:brew list --cask firefox:Firefox"
+    ["spotify"]="cask:spotify:brew list --cask spotify:Spotify"
+    ["signal"]="cask:signal:brew list --cask signal:Signal"
+    ["discord"]="cask:discord:brew list --cask discord:Discord"
+    ["ghostty"]="cask:ghostty:brew list --cask ghostty:Ghostty"
+    ["raycast"]="cask:raycast:brew list --cask raycast:Raycast"
+    ["obsidian"]="cask:obsidian:brew list --cask obsidian:Obsidian"
+    ["qbittorrent"]="cask:qbittorrent:brew list --cask qbittorrent:qBittorrent"
+    ["eddie"]="cask:eddie:brew list --cask eddie:Eddie"
+    ["opencode"]="tap:anomalyco/tap/opencode:command -v opencode:OpenCode"
 )
 
 # =============================================================================
@@ -141,39 +163,17 @@ install_bun() {
 # Package Installation Logic
 # =============================================================================
 
-# Parse package info from PACKAGES array
-# Returns: type|command|check|display_name
-get_package_info() {
-    local target_key="$1"
-    local pkg_info
-    
-    for pkg_info in "${PACKAGES[@]}"; do
-        local key="${pkg_info%%|*}"
-        if [[ "$key" == "$target_key" ]]; then
-            echo "${pkg_info#*|}"
-            return 0
-        fi
-    done
-    return 1
-}
-
 install_package() {
     local package_key="$1"
-    local info
+    local info="${PACKAGE_INFO[$package_key]}"
     
-    info=$(get_package_info "$package_key")
-    if [[ $? -ne 0 ]]; then
-        print_error "Package not found: $package_key"
-        return 1
-    fi
-    
-    # Parse package info: type|command|check|display_name
-    local type="${info%%|*}"
-    info="${info#*|}"
-    local command="${info%%|*}"
-    info="${info#*|}"
-    local check="${info%%|*}"
-    local display_name="${info#*|}"
+    # Parse package info: type:command:check:display_name
+    local type="${info%%:*}"
+    info="${info#*:}"
+    local command="${info%%:*}"
+    info="${info#*:}"
+    local check="${info%%:*}"
+    local display_name="${info#*:}"
     
     print_progress "Installing ${display_name}..."
     
@@ -275,19 +275,17 @@ print_summary() {
     local success_count=0
     local fail_count=0
     local failed_packages=()
-    local pkg_info
     
-    for pkg_info in "${PACKAGES[@]}"; do
-        # Skip if it's the homebrew entry (processed separately)
-        local key="${pkg_info%%|*}"
-        [[ "$key" == "homebrew" ]] && continue
+    for package in "${PACKAGES[@]}"; do
+        local info="${PACKAGE_INFO[$package]}"
         
-        # Extract check command (4th field) and display name (5th field)
-        local temp="${pkg_info#*|}"  # Remove key
-        temp="${temp#*|}"            # Remove type
-        temp="${temp#*|}"            # Remove command
-        local check="${temp%%|*}"    # Get check
-        local display_name="${temp#*|}" # Get display name
+        # Extract check command (3rd field)
+        local temp="${info#*:}"  # Remove type
+        temp="${temp#*:}"        # Remove command
+        local check="${temp%%:*}" # Get check
+        
+        # Extract display name (4th field)
+        local display_name="${info##*:}"
         
         if eval "$check" &>/dev/null; then
             print_success "$display_name"
@@ -341,20 +339,20 @@ main() {
     echo ""
     
     # Homebrew must be installed first and succeed
-    install_package "homebrew"
-    # Check if it actually installed/exists
-    if ! command -v brew &>/dev/null; then
-        print_error "Homebrew installation failed - cannot continue"
-        print_info "Please install Homebrew manually: https://brew.sh"
-        exit 1
+    if [[ "${PACKAGES[0]}" == "homebrew" ]]; then
+        install_package "homebrew"
+        # Check if it actually installed/exists
+        if ! command -v brew &>/dev/null; then
+            print_error "Homebrew installation failed - cannot continue"
+            print_info "Please install Homebrew manually: https://brew.sh"
+            exit 1
+        fi
     fi
     
     # Install remaining packages
-    local pkg_info
-    for pkg_info in "${PACKAGES[@]}"; do
-        local key="${pkg_info%%|*}"
-        [[ "$key" == "homebrew" ]] && continue
-        install_package "$key"
+    for package in "${PACKAGES[@]}"; do
+        [[ "$package" == "homebrew" ]] && continue
+        install_package "$package"
     done
     
     # Additional configuration
