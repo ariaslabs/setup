@@ -34,6 +34,7 @@ declare -a PACKAGES=(
     "firefox"       # Web browser
     "spotify"       # Music streaming
     "signal"        # Secure messaging
+    "discord"       # Chat and voice
     "ghostty"       # Terminal emulator
     "raycast"       # Spotlight replacement
     "obsidian"      # Note-taking app
@@ -56,6 +57,7 @@ declare -A PACKAGE_INFO=(
     ["firefox"]="cask:firefox:brew list --cask firefox:Firefox"
     ["spotify"]="cask:spotify:brew list --cask spotify:Spotify"
     ["signal"]="cask:signal:brew list --cask signal:Signal"
+    ["discord"]="cask:discord:brew list --cask discord:Discord"
     ["ghostty"]="cask:ghostty:brew list --cask ghostty:Ghostty"
     ["raycast"]="cask:raycast:brew list --cask raycast:Raycast"
     ["obsidian"]="cask:obsidian:brew list --cask obsidian:Obsidian"
