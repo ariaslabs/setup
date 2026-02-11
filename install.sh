@@ -67,12 +67,70 @@ detect_os() {
     echo "$os_type"
 }
 
+check_and_install_zsh() {
+    print_info "Checking for zsh..."
+    
+    if command -v zsh &> /dev/null; then
+        print_success "Zsh is already installed: $(which zsh)"
+        
+        # Set as default if not already
+        local current_shell=$(basename "$SHELL")
+        if [[ "$current_shell" != "zsh" ]]; then
+            print_info "Setting zsh as default shell..."
+            chsh -s "$(which zsh)"
+            print_success "Zsh set as default shell (will take effect after next login)"
+        fi
+        return 0
+    fi
+    
+    print_warning "Zsh not found. Installing..."
+    local os=$(detect_os)
+    
+    case "$os" in
+        "macos")
+            if ! command -v brew &> /dev/null; then
+                print_info "Installing Homebrew first..."
+                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                if [[ $(uname -m) == 'arm64' ]]; then
+                    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+                    eval "$(/opt/homebrew/bin/brew shellenv)"
+                fi
+            fi
+            brew install zsh
+            ;;
+        "ubuntu"|"debian"|"linux")
+            print_info "Installing zsh via apt..."
+            sudo apt-get update
+            sudo apt-get install -y zsh
+            ;;
+        *)
+            print_error "Cannot install zsh on unsupported OS: $os"
+            exit 1
+            ;;
+    esac
+    
+    # Verify and set as default
+    if command -v zsh &> /dev/null; then
+        print_success "Zsh installed: $(which zsh)"
+        print_info "Setting zsh as default shell..."
+        chsh -s "$(which zsh)"
+        print_success "Zsh set as default (will take effect after next login)"
+    else
+        print_error "Zsh installation failed"
+        exit 1
+    fi
+}
+
 main() {
     clear
     print_header
     
     local os=$(detect_os)
     print_info "Detected operating system: $os"
+    echo ""
+    
+    # Check and install zsh first
+    check_and_install_zsh
     echo ""
     
     case "$os" in

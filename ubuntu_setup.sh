@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 # =============================================================================
 # Ubuntu Setup Script
@@ -14,6 +14,22 @@
 # Usage: ./ubuntu_setup.sh
 # =============================================================================
 
+# Pre-flight check: Ensure zsh is installed and running
+if [[ -z "$ZSH_VERSION" ]]; then
+    echo "⚠️  This script requires zsh. Installing zsh..."
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update && sudo apt-get install -y zsh
+    else
+        echo "❌ Error: apt-get not found. Cannot install zsh automatically."
+        echo "Please install zsh manually and re-run this script."
+        exit 1
+    fi
+    
+    # Switch to zsh and re-run this script
+    echo "🔄 Switching to zsh and restarting script..."
+    exec zsh "$0" "$@"
+fi
+
 # Clear terminal for clean start
 clear
 
@@ -22,7 +38,7 @@ clear
 # =============================================================================
 
 # List of packages to install (in order)
-declare -a PACKAGES=(
+PACKAGES=(
     "update"        # Update package lists (must be first)
     "build-essential" # Build tools
     "git"           # Version control
@@ -43,13 +59,15 @@ declare -a PACKAGES=(
     "discord"       # Chat and voice
     "obsidian"      # Note-taking app
     "qbittorrent"   # BitTorrent client
+    "ghostty"       # Terminal emulator
     "eddie"         # VPN client
     "opencode"      # AI coding assistant
 )
 
 # Package metadata: install_command:check_command:display_name
 # Format: "type:apt_install|snap_install|script:command:check:Display Name"
-declare -A PACKAGE_INFO=(
+typeset -A PACKAGE_INFO
+PACKAGE_INFO=(
     ["update"]="script:apt_update:echo 'done':System Update"
     ["build-essential"]="apt:build-essential:dpkg -l build-essential:Build Essential"
     ["git"]="apt:git:command -v git:Git"
@@ -70,6 +88,7 @@ declare -A PACKAGE_INFO=(
     ["discord"]="snap:discord:snap list discord:Discord"
     ["obsidian"]="snap:obsidian:snap list obsidian:Obsidian"
     ["qbittorrent"]="apt:qbittorrent:command -v qbittorrent:qBittorrent"
+    ["ghostty"]="snap:ghostty:snap list ghostty:Ghostty"
     ["eddie"]="script:install_eddie:dpkg -l eddie-ui:Eddie VPN"
     ["opencode"]="script:install_opencode:command -v opencode:OpenCode"
 )
@@ -139,6 +158,22 @@ print_progress() {
 apt_update() {
     print_progress "Updating package lists..."
     sudo apt-get update
+}
+
+set_default_shell() {
+    local current_shell=$(basename "$SHELL")
+    if [[ "$current_shell" == "zsh" ]]; then
+        print_info "Zsh is already the default shell"
+        return 0
+    fi
+
+    if command -v zsh &> /dev/null; then
+        print_progress "Setting zsh as default shell..."
+        chsh -s "$(which zsh)"
+        print_success "Zsh set as default shell (will take effect after next login)"
+    else
+        print_warning "Zsh not found, cannot set as default"
+    fi
 }
 
 install_ohmyzsh() {
@@ -245,7 +280,11 @@ install_package() {
             sudo apt-get install "$command" -y || success=false
             ;;
         "snap")
-            sudo snap install "$command" || success=false
+            if [[ "$command" == "ghostty" ]]; then
+                sudo snap install "$command" --classic || success=false
+            else
+                sudo snap install "$command" || success=false
+            fi
             ;;
         "script")
             $command || success=false
@@ -275,8 +314,8 @@ configure_git() {
     
     local git_name git_email
     
-    read -p "Enter your Git name (or press Enter to skip): " git_name
-    read -p "Enter your Git email (or press Enter to skip): " git_email
+    read "git_name?Enter your Git name (or press Enter to skip): "
+    read "git_email?Enter your Git email (or press Enter to skip): "
     
     if [[ -n "$git_name" && -n "$git_email" ]]; then
         git config --global user.name "$git_name"
@@ -294,7 +333,7 @@ rename_device() {
     local current_name new_name
     current_name=$(hostname)
 
-    read -p "New device name (current: ${current_name}, Enter to keep): " new_name
+    read "new_name?New device name (current: ${current_name}, Enter to keep): "
 
     if [[ -n "$new_name" ]]; then
         sudo hostnamectl set-hostname "$new_name"
@@ -349,7 +388,7 @@ print_summary() {
     local fail_count=0
     local failed_packages=()
     
-    for package in "${PACKAGES[@]}"; do
+    for package in "${(@)PACKAGES}"; do
         local info="${PACKAGE_INFO[$package]}"
         
         # Extract check command (3rd field)
@@ -362,10 +401,10 @@ print_summary() {
         
         if eval "$check" &>/dev/null; then
             print_success "$display_name"
-            ((success_count++))
+            (( success_count++ ))
         else
             print_error "$display_name"
-            ((fail_count++))
+            (( fail_count++ ))
             failed_packages+=("$display_name")
         fi
     done
@@ -390,7 +429,6 @@ print_post_install_info() {
     echo -e "  ${CYAN}•${NC} Ollama: Run 'ollama run llama2' to download a model"
     echo -e "  ${CYAN}•${NC} Syncthing: Run 'sudo systemctl enable --now syncthing@$USER.service'"
     echo -e "  ${CYAN}•${NC} Bun.js: Restart terminal or run 'source ~/.bashrc'"
-    echo -e "  ${CYAN}•${NC} Oh My Zsh: Run 'chsh -s $(which zsh)' to set as default shell"
     echo ""
 }
 
@@ -402,7 +440,7 @@ main() {
     # Check Linux/Ubuntu
     if [[ ! -f /etc/os-release ]] || ! grep -q 'ubuntu\|debian' /etc/os-release; then
         print_warning "This script is designed for Ubuntu/Debian!"
-        read -p "Continue anyway? (y/N): " continue_anyway
+        read "continue_anyway?Continue anyway? (y/N): "
         [[ "$continue_anyway" != "y" && "$continue_anyway" != "Y" ]] && exit 1
     fi
 
@@ -414,9 +452,12 @@ main() {
     echo ""
 
     # Install all packages
-    for package in "${PACKAGES[@]}"; do
+    for package in "${(@)PACKAGES}"; do
         install_package "$package"
     done
+
+    # Set zsh as default shell after installation
+    set_default_shell
 
     # Additional configuration
     configure_git
